@@ -13,6 +13,3 @@
                        (:dependencies project)))
 
 (require '[adzerk.boot-test :refer :all])
-
-(task-options!
- test {:namespace '#{telehash.hashname.base32-test}})
