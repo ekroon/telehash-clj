@@ -1,4 +1,4 @@
-(defproject clj-telehash "0.0.1-SNAPSHOT"
+(defproject telehash-clj "0.0.1-SNAPSHOT"
             :description ""
             :url ""
             :license {:name "Eclipse Public License"
