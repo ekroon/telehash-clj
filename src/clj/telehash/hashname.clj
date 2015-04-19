@@ -1,0 +1,2 @@
+(ns clj.telehash.hashname)
+
