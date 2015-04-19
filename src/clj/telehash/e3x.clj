@@ -39,15 +39,18 @@
         keypair (.generateKeyPair generator)]
     {:id "1a" :keypair keypair}))
 
-(defmethod load-cs "1a" [_ {:keys [key secret]}]
-  (let [public (Hex/decodeHex (char-array key))
+(defmethod load-cs "1a" [_ {hex-key :key  hex-secret :secret}]
+  (let [public (Hex/decodeHex (char-array hex-key))
         public-Q (-> (.getCurve secp160r1-curve) (.decodePoint public))
         public-params (ECPublicKeyParameters. public-Q secp160r1-domain)
-        private (Hex/decodeHex (char-array secret))
+        private (Hex/decodeHex (char-array hex-secret))
         private-D (BigInteger. private)
         private-params (ECPrivateKeyParameters. private-D secp160r1-domain)
-        keypair (AsymmetricCipherKeyPair. public-params private-params)]
-    {:id "1a" :keypair keypair})
+        keypair (AsymmetricCipherKeyPair. public-params private-params)
+        result {:id "1a" :keypair keypair}]
+    (if-not (= hex-key (key result)) (throw (Exception. "invalid key")))
+    (if-not (= hex-secret (secret result)) (throw (Exception. "invalid secret")))
+    result)
   )
 
 (defmethod key "1a" [cs]
