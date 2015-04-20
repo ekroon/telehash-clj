@@ -9,7 +9,7 @@
            [org.apache.commons.codec.binary Hex]))
 
 (defmulti generate-cs identity)
-(defmulti load-cs (fn [id _] id))
+(defmulti load-local (fn [id _] id))
 (defmulti key :id)
 (defmulti secret :id)
 
@@ -39,7 +39,7 @@
         keypair (.generateKeyPair generator)]
     {:id "1a" :keypair keypair}))
 
-(defmethod load-cs "1a" [_ {hex-key :key  hex-secret :secret}]
+(defmethod load-local "1a" [_ {hex-key :key  hex-secret :secret}]
   (let [public (Hex/decodeHex (char-array hex-key))
         public-Q (-> (.getCurve secp160r1-curve) (.decodePoint public))
         public-params (ECPublicKeyParameters. public-Q secp160r1-domain)
