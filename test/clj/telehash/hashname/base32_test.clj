@@ -6,6 +6,7 @@
 (deftest encode
   (is (= "mzxw6ytboi"
          (base32/encode (byte-array (map byte "foobar"))))))
+
 (deftest decode
   (is (= "foobar"
          (clojure.string/join
