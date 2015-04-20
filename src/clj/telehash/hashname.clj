@@ -17,7 +17,8 @@
 (defn- to-vector [map]
   (->> map
        (into (sorted-map))
-       (mapcat (fn [[k v]] [(from-hex k) (base32/decode v)]))
+       (mapcat (fn [[k v]] [(from-hex k)
+                           (DigestUtils/sha256 (base32/decode v))]))
        (into [])))
 
 (defn from-keys [keys-map]
