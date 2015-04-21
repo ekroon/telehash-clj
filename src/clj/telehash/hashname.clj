@@ -9,32 +9,38 @@
     (catch Exception e
       (byte-array []))))
 
+(def from-hex-k-t
+  (map (fn [[k v]]
+         [(from-hex k) v])))
+
+(def digest-v-t
+  (map (fn [[k v]]
+         [k (-> v
+                base32/decode
+                DigestUtils/sha256)])))
+
+(def base32-encode-v-t
+  (map (fn [[k v]]
+         [k (base32/encode v)])))
+
 (defn intermediates [keys-map]
-  (->>
-   keys-map
-   (map (fn [[k v]]
-          [k (-> v
-                 base32/decode
-                 DigestUtils/sha256
-                 base32/encode)]))
-   (into {})))
+  (into (sorted-map)
+        (comp digest-v-t base32-encode-v-t)
+        keys-map))
 
-(defn- rollup [current next]
-  (-> (concat current next)
-      byte-array
-      DigestUtils/sha256))
-
-(defn- to-vector [map]
-  (->> map
-       (into (sorted-map))
-       (mapcat (fn [[k v]] [(from-hex k)
-                           (DigestUtils/sha256 (base32/decode v))]))
-       (into [])))
+(defn rollup-t
+  ([] (byte-array []))
+  ([current] (base32/encode current))
+  ([current next] (-> (concat current next)
+                      byte-array
+                      DigestUtils/sha256)))
 
 (defn from-keys [keys-map]
   {:pre [(map? keys-map)
          (not-empty keys-map)]}
-  (->> keys-map
-       to-vector
-       (reduce rollup (byte-array []))
-       base32/encode))
+  (transduce
+   (comp from-hex-k-t
+         digest-v-t
+         (mapcat identity))
+   rollup-t
+   (into (sorted-map) keys-map)))
