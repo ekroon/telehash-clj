@@ -9,17 +9,17 @@
     (catch Exception e
       (byte-array []))))
 
-(def from-hex-k-t
+(def ^:private from-hex-k-t
   (map (fn [[k v]]
          [(from-hex k) v])))
 
-(def digest-v-t
+(def ^:private digest-v-t
   (map (fn [[k v]]
          [k (-> v
                 base32/decode
                 DigestUtils/sha256)])))
 
-(def base32-encode-v-t
+(def ^:private base32-encode-v-t
   (map (fn [[k v]]
          [k (base32/encode v)])))
 
@@ -28,7 +28,7 @@
         (comp digest-v-t base32-encode-v-t)
         keys-map))
 
-(defn rollup-t
+(defn- rollup-t
   ([] (byte-array []))
   ([current] (base32/encode current))
   ([current next] (-> (concat current next)
