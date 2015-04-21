@@ -9,7 +9,17 @@
     (catch Exception e
       (byte-array []))))
 
-(defn rollup [current next]
+(defn intermediates [keys-map]
+  (->>
+   keys-map
+   (map (fn [[k v]]
+          [k (-> v
+                 base32/decode
+                 DigestUtils/sha256
+                 base32/encode)]))
+   (into {})))
+
+(defn- rollup [current next]
   (-> (concat current next)
       byte-array
       DigestUtils/sha256))
