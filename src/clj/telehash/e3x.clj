@@ -91,7 +91,8 @@
   (let [actual-n (count bytes)]
     (if (< actual-n n)
       (byte-array (concat (repeat (- n actual-n) 0x00) bytes))
-      (byte-array (take-last n bytes)))))
+      (byte-array (take-last n bytes))
+      )))
 
 (defn load-private-secp160r1 [private]
   (let [D (BigInteger. private)]
@@ -102,17 +103,21 @@
     (ECPublicKeyParameters. Q secp160r1-domain)))
 
 (defn secp160r1-shared-secret [private public]
+;;  (println "calculate shared:" (bytes->hex private) (bytes->hex public))
   (let [Q (-> (.getCurve secp160r1-curve) (.decodePoint public))
         D (BigInteger. private)
         agreement (ECDHBasicAgreement.)]
     (.init agreement (ECPrivateKeyParameters. D secp160r1-domain))
     (-> (.calculateAgreement agreement (ECPublicKeyParameters. Q secp160r1-domain))
-        .toByteArray)))
+        .toByteArray (make-n-bytes 20))))
 
 (defmethod generate-local "1a" [_]
   (let [generator (keypair-generator secp160r1-domain)
-        keypair (.generateKeyPair generator)]
-    {:id "1a" :public (.getPublic keypair) :private (.getPrivate keypair)}))
+        keypair (.generateKeyPair generator)
+        result {:id "1a" :public (.getPublic keypair) :private (.getPrivate keypair)}]
+    (if (not= 20 (count (secret result)))
+      (generate-local "1a")
+      result)))
 
 (defmethod load-local "1a" [_ {hex-key :key  hex-secret :secret}]
   (let [public (Hex/decodeHex (char-array hex-key))
@@ -143,8 +148,7 @@
   (-> (:public cs) .getQ (.getEncoded true)))
 
 (defmethod secret "1a" [cs]
-  (-> (:private cs) .getD .toByteArray
-                    (make-n-bytes 20)))
+  (-> (:private cs) .getD .toByteArray))
 
 (defn- bytes->1a-message [bytes]
   (if (< (count bytes) (+ 21 4 4)) nil
@@ -162,9 +166,10 @@
 (defmethod decrypt "1a" [local msgbuf]
   (if-let [message (bytes->1a-message msgbuf)]
     (let [shared-secret (secp160r1-shared-secret (secret local) (:key message))
-          key (fold (bytes->SHA256 shared-secret) 1)
+          aes-key (fold (bytes->SHA256 shared-secret) 1)
+ ;;         _ (println "decrypt:"  (bytes->hex shared-secret) (bytes->hex aes-key))
           padded-iv (byte-array (concat (:iv message) ivz-12))
-          decrypted (AES-128-CTR-decrypt key padded-iv (:inner message))]
+          decrypted (AES-128-CTR-decrypt aes-key padded-iv (:inner message))]
       [local decrypted])
     [local nil]))
 
@@ -172,6 +177,7 @@
   (let [{:keys [endpoint]} remote
         shared-secret (secp160r1-shared-secret (secret remote) endpoint)
         aes-key (fold (bytes->SHA256 shared-secret) 1)
+ ;;       _ (println "encrypt:" (bytes->hex shared-secret) (bytes->hex aes-key))
         new-seq (inc (:seq remote))
         iv (int->bytes new-seq)
         padded-iv (byte-array (concat iv ivz-12))
