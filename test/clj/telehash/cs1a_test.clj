@@ -14,30 +14,31 @@
 
 (def A->B (bu/hex->bytes "030d8def4405c1380afeca3760322be710a3f53cfe7c9bed207249f31af977"))
 (def B->A (bu/hex->bytes "021aaad76e86b2c951a0ab00b22d031567b6bd556aa953a22b65f5d62dcbba"))
+(def faulty-B->A (bu/hex->bytes "021aaad76e86b2c951a0ab00b22d031567b6bd556aa953a22b65f5d62dcbbb"))
 
 (def import (partial e3x/import-cipher-set load))
 
 (defn create-exchange [cs remote]
   (e3x/create-exchange cs (bu/hex->bytes (:key remote))))
 
-(defn validate-generated-cs1a [keypair]
+(defn validate-generated [keypair]
   (is (= 21 (-> keypair e3x/cipher-set-key count)))
   (is (= 20 (-> keypair e3x/cipher-set-secret count))  (str "SECRET: " (:secret keypair))))
 
-(deftest generated-cs1a-identity-validation
+(deftest generated-identity-validation
   (doseq [generated (repeatedly 100 #(generate))]
-    (validate-generated-cs1a generated))
+    (validate-generated generated))
   )
 
-(deftest generated-cs1a-id-check
+(deftest generated-id-check
   (is (= "1a" (e3x/cipher-set-id (generate)))))
 
-(deftest valid-local-cs1a-should-load-correctly
+(deftest valid-local-should-load-correctly
   (let [cs-1 (import  cs1a-A)]
     (is (= (-> cs-1 e3x/cipher-set-key bu/bytes->hex) (:key cs1a-A)))
     (is (= (-> cs-1 e3x/cipher-set-secret bu/bytes->hex) (:secret cs1a-A)))))
 
-(deftest loading-invalid-local-cs1a-should-throw-error
+(deftest loading-invalid-local-should-throw-error
   (let [empty {}
         short-secret {:key "03be277f53630a084de2f39c7ff9de56c38bb9d10c"
                       :secret "792fd655c8e03ae16e0e49c3f0265d04689cbe"}
@@ -53,25 +54,37 @@
 ;;    (is (thrown? Exception (load-local "1a" long-secret))) ; same for long ?
     (is (thrown? Exception (import long-key)))))
 
-(deftest should-local-decrypt-cs1a
+(deftest should-local-decrypt
   (let [local (import cs1a-A)
         exchange (create-exchange local cs1a-B)
         [_ decrypted] (e3x/decrypt-message local (:session exchange) B->A)]
     (is (= 2 (count decrypted)))
     (is (= "0000" (bu/bytes->hex decrypted)))))
 
+(deftest should-verify
+  (let [local (import cs1a-A)
+        exchange (create-exchange local cs1a-B)
+        valid? (e3x/verify-message local (:session exchange) B->A)]
+    (is (= true valid?))))
+
+(deftest should-invalidate
+  (let [local (import cs1a-A)
+        exchange (create-exchange local cs1a-B)
+        valid? (e3x/verify-message local (:session exchange) faulty-B->A)]
+    (is (= false valid?))))
+
 (deftest should-create-exchange
   (let [local (generate)
         exchange (create-exchange local cs1a-B)]
     (is (= 16 (-> exchange :session :token count)))))
 
-(deftest should-local-encrypt-cs1a
+(deftest should-local-encrypt
   (let [local (import cs1a-A)
         exchange (create-exchange local cs1a-B)
         [_ message] (e3x/encrypt-message local (:session exchange) (bu/hex->bytes "0000"))]
     (is (= 31 (count message)))))
 
-(deftest should-remote-encrypt-cs1a
+(deftest should-remote-encrypt
   (let [local (import cs1a-B)
         exchange (create-exchange local cs1a-A)
         [_ message] (e3x/encrypt-message local (:session exchange) (bu/hex->bytes "0000"))]
@@ -96,5 +109,7 @@
         local-B (import cs1a-B)
         exchange-B (create-exchange local-B cs1a-A)
         [_ encrypted] (e3x/encrypt-message local-A (:session exchange-A) (bu/hex->bytes "0000"))
+        valid? (e3x/verify-message local-B (:session exchange-B) encrypted)
         [_ decrypted] (e3x/decrypt-message local-B (:session exchange-B) encrypted)]
+    (is (= true valid?))
     (is (= "0000" (bu/bytes->hex decrypted)))))

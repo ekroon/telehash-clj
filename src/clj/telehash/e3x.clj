@@ -14,7 +14,7 @@
   (create-exchange [_ remote-id])
   (encrypt-message [_ session mbuf])
   (decrypt-message [_ session mbuf])
-  (validate-message [_ session mbuf]))
+  (verify-message [_ session mbuf]))
 
 (defn export-cipher-set [cs]
   {:key (bu/bytes->hex (cipher-set-key cs))

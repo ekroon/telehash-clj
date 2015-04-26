@@ -9,8 +9,8 @@
     seq-or-bytes
     (byte-array seq-or-bytes)))
 
-(defn bytes->hex [bytes]
-  (Hex/encodeHexString bytes))
+(defn bytes->hex [seq-or-bytes]
+  (Hex/encodeHexString (ensure-byte-array seq-or-bytes)))
 
 (defn hex->bytes [hex]
   (Hex/decodeHex (char-array hex)))

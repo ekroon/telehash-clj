@@ -7,27 +7,30 @@
             [telehash.elliptic-curve :as ec])
   (:import telehash.e3x.CipherSet))
 
-(defn- create-exchange* [remote-id]
+(defn- create-exchange* [local remote-id]
   (let [ephemeral (ec/generate-secp160r1)
-        seq (rand-int Integer/MAX_VALUE)]
+        seq (rand-int Integer/MAX_VALUE)
+        encrypt-key (-> (ec/calculate-shared-secret ephemeral remote-id)
+                           (sha/bytes->SHA256)
+                           (bu/fold 1))
+        mac-secret (ec/calculate-shared-secret local remote-id)]
     {:endpoint remote-id
      :ephemeral ephemeral
      :token (-> ephemeral
                 (ec/public-key) (bu/make-n-bytes 16) (sha/bytes->SHA256) (bu/make-n-bytes 16))
-     :seq (rand-int Integer/MAX_VALUE)}))
+     :seq (rand-int Integer/MAX_VALUE)
+     :encrypt-key encrypt-key
+     :mac-secret mac-secret}))
 
 (defn- encrypt-message* [local session msgbuf]
   "local secp"
-  (let [{:keys [endpoint ephemeral seq]} session
-        shared-secret (ec/calculate-shared-secret ephemeral endpoint)
-        aes-key (bu/fold (sha/bytes->SHA256 shared-secret) 1)
+  (let [{:keys [endpoint ephemeral seq encrypt-key mac-secret]} session
         new-seq (inc seq)
         iv (bu/int->bytes new-seq)
         padded-iv (byte-array (concat iv (bu/zeros 12)))
-        encrypted (aes/AES-128-CTR-encrypt aes-key padded-iv msgbuf)
-        mac-secret (ec/calculate-shared-secret local endpoint)
+        encrypted (aes/AES-128-CTR-encrypt encrypt-key padded-iv msgbuf)
         macd (byte-array (concat (ec/public-key ephemeral) iv encrypted))
-        hmac (bu/fold (sha/HMAC-SHA256 (byte-array (concat mac-secret iv)) macd) 3)]
+        hmac (bu/fold (sha/HMAC-SHA256 (concat mac-secret iv) macd) 3)]
     [(assoc session :seq new-seq)
      (byte-array (concat macd hmac))]))
 
@@ -36,11 +39,13 @@
       (let [key (take 21 bytes)
             iv (->> bytes (drop 21) (take 4))
             inner (->> bytes (drop (+ 21 4)) (drop-last 4))
+            dmac (->> bytes (drop-last 4))
             hmac (->> bytes (take-last 4))]
         {:key  key
          :iv iv
          :inner inner
-         :hmac  hmac})))
+         :dmac dmac
+         :hmac hmac})))
 
 (defn- decrypt-message* [secp160r1 msgbuf]
   (if-let [message (bytes->1a-message msgbuf)]
@@ -51,17 +56,27 @@
       decrypted)
     nil))
 
+(defn- verify-message* [secp160r1 session msgbuf]
+  (if-let [message (bytes->1a-message msgbuf)]
+    (let [secret (:mac-secret session)
+          iv (:iv message)
+          check-mac (bu/fold (sha/HMAC-SHA256 (concat secret iv) (:dmac message)) 3)]
+      (= (bu/bytes->hex check-mac) (bu/bytes->hex (:hmac message))))
+    false))
+
 (deftype cs1a [keypair]
   CipherSet
   (cipher-set-id [_] "1a")
   (cipher-set-key [_] (ec/public-key keypair))
   (cipher-set-secret [_] (ec/private-key keypair))
   (create-exchange [this remote-id]
-    (e3x/->E3X this (create-exchange* remote-id)))
+    (e3x/->E3X this (create-exchange* keypair remote-id)))
   (encrypt-message [_ session mbuf]
     (encrypt-message* keypair session mbuf))
   (decrypt-message [_ session mbuf]
-    [session (decrypt-message* keypair mbuf)]))
+    [session (decrypt-message* keypair mbuf)])
+  (verify-message [_ session mbuf]
+    (verify-message* keypair session mbuf)))
 
 (defn generate []
   (let [secp160r1 (ec/generate-secp160r1)]
