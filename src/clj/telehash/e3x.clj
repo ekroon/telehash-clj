@@ -1,18 +1,14 @@
 (ns telehash.e3x
   (:refer-clojure :exclude [key])
+  (:require [telehash.elliptic-curve :as ec])
   (:import [java.nio ByteBuffer]
-           [java.security SecureRandom]
            [javax.crypto Cipher]
            [javax.crypto.spec SecretKeySpec IvParameterSpec]
            [org.apache.commons.codec.binary Hex]
-           [org.bouncycastle.asn1.sec SECNamedCurves]
            [org.bouncycastle.crypto AsymmetricCipherKeyPair]
-           [org.bouncycastle.crypto.agreement ECDHBasicAgreement]
            [org.bouncycastle.crypto.digests SHA256Digest]
-           [org.bouncycastle.crypto.generators ECKeyPairGenerator]
            [org.bouncycastle.crypto.macs HMac]
-           [org.bouncycastle.crypto.params ECPublicKeyParameters ECPrivateKeyParameters
-            ECDomainParameters ECKeyGenerationParameters KeyParameter]
+           [org.bouncycastle.crypto.params KeyParameter]
            [org.bouncycastle.jcajce.provider.digest SHA256$Digest SHA256$HashMac]))
 
 (java.security.Security/addProvider (org.bouncycastle.jce.provider.BouncyCastleProvider.))
@@ -74,19 +70,6 @@
              folded (byte-array (map bit-xor p1 p2))]
          (recur folded (- n 1))))))
 
-(def ^:static secp160r1-curve (SECNamedCurves/getByName "secp160r1"))
-(def ^:static secp160r1-domain
-  (ECDomainParameters. (.getCurve secp160r1-curve)
-                       (.getG secp160r1-curve)
-                       (.getN secp160r1-curve)
-                       (.getH secp160r1-curve)))
-
-(defn keypair-generator [domain]
-  (let [generator (ECKeyPairGenerator.)
-        params (ECKeyGenerationParameters. domain (SecureRandom.))]
-    (.init generator params)
-    generator))
-
 (defn make-n-bytes [bytes n]
   (let [actual-n (count bytes)]
     (if (< actual-n n)
@@ -94,39 +77,18 @@
       (byte-array (take-last n bytes))
       )))
 
-(defn load-private-secp160r1 [private]
-  (let [D (BigInteger. private)]
-    (ECPrivateKeyParameters. D secp160r1-domain)))
-
-(defn load-public-secp160r1 [public]
-  (let [Q (-> (.getCurve secp160r1-curve) (.decodePoint public))]
-    (ECPublicKeyParameters. Q secp160r1-domain)))
-
-(defn secp160r1-shared-secret [private public]
-;;  (println "calculate shared:" (bytes->hex private) (bytes->hex public))
-  (let [Q (-> (.getCurve secp160r1-curve) (.decodePoint public))
-        D (BigInteger. private)
-        agreement (ECDHBasicAgreement.)]
-    (.init agreement (ECPrivateKeyParameters. D secp160r1-domain))
-    (-> (.calculateAgreement agreement (ECPublicKeyParameters. Q secp160r1-domain))
-        .toByteArray (make-n-bytes 20))))
-
 (defmethod generate-local "1a" [_]
-  (let [generator (keypair-generator secp160r1-domain)
-        keypair (.generateKeyPair generator)
-        result {:id "1a" :public (.getPublic keypair) :private (.getPrivate keypair)}]
-    (if (not= 20 (count (secret result)))
-      (generate-local "1a")
-      result)))
+  (let [ec (ec/generate-secp160r1)
+        result {:id "1a" :ec ec}]
+    result))
 
 (defmethod load-local "1a" [_ {hex-key :key  hex-secret :secret}]
   (let [public (Hex/decodeHex (char-array hex-key))
         private (Hex/decodeHex (char-array hex-secret))
-        private-key (load-private-secp160r1 private)
-        public-key (load-public-secp160r1 public)
-        result {:id "1a" :public public-key :private private-key}]
-    (if-not (= hex-key (-> result key bytes->hex)) (throw (Exception. "invalid key")))
-    (if-not (= hex-secret (-> result secret bytes->hex)) (throw (Exception. "invalid secret")))
+        ec (ec/load-secp160r1 private public)
+        result {:id "1a" :ec ec}]
+    (if-not (= hex-key (-> ec ec/public-key bytes->hex)) (throw (Exception. "invalid key")))
+    (if-not (= hex-secret (-> ec ec/private-key bytes->hex)) (throw (Exception. "invalid secret")))
     result)
   )
 
@@ -145,10 +107,10 @@
         (assoc :seq seq))))
 
 (defmethod key "1a" [cs]
-  (-> (:public cs) .getQ (.getEncoded true)))
+  (-> (:ec cs) ec/public-key))
 
 (defmethod secret "1a" [cs]
-  (-> (:private cs) .getD .toByteArray))
+  (-> (:ec cs) ec/private-key))
 
 (defn- bytes->1a-message [bytes]
   (if (< (count bytes) (+ 21 4 4)) nil
@@ -165,7 +127,7 @@
 
 (defmethod decrypt "1a" [local msgbuf]
   (if-let [message (bytes->1a-message msgbuf)]
-    (let [shared-secret (secp160r1-shared-secret (secret local) (:key message))
+    (let [shared-secret (ec/calculate-shared-secret (:ec local) (:key message))
           aes-key (fold (bytes->SHA256 shared-secret) 1)
  ;;         _ (println "decrypt:"  (bytes->hex shared-secret) (bytes->hex aes-key))
           padded-iv (byte-array (concat (:iv message) ivz-12))
@@ -175,14 +137,14 @@
 
 (defmethod encrypt "1a" [local remote msgbuf]
   (let [{:keys [endpoint]} remote
-        shared-secret (secp160r1-shared-secret (secret remote) endpoint)
+        shared-secret (ec/calculate-shared-secret (:ec remote) endpoint)
         aes-key (fold (bytes->SHA256 shared-secret) 1)
  ;;       _ (println "encrypt:" (bytes->hex shared-secret) (bytes->hex aes-key))
         new-seq (inc (:seq remote))
         iv (int->bytes new-seq)
         padded-iv (byte-array (concat iv ivz-12))
         encrypted (AES-128-CTR-encrypt aes-key padded-iv msgbuf)
-        mac-secret (secp160r1-shared-secret (secret local) endpoint)
+        mac-secret (ec/calculate-shared-secret (:ec local) endpoint)
         macd (byte-array (concat (key remote) iv encrypted))
         hmac (fold (HMAC-SHA256 (byte-array (concat mac-secret iv)) macd) 3)]
     [(assoc local :seq new-seq)

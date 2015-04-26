@@ -72,18 +72,18 @@
         [_ _ message] (encrypt local remote (hex->bytes "0000"))]
     (is (= 31 (count message)))))
 
-(deftest AES-128-encrypt-decrypt
-  (let [in (hex->bytes "0000")
-        shared1 (secp160r1-shared-secret (hex->bytes (:secret cs1a-A))
-                                         (hex->bytes (:key cs1a-B)))
-        shared2 (secp160r1-shared-secret (hex->bytes (:secret cs1a-B))
-                                         (hex->bytes (:key cs1a-A)))
-        key (fold (bytes->SHA256 shared1) 1)
-        iv (byte-array (repeat 16 0x00))
-        encrypted (AES-128-CTR-encrypt key iv in)
-        out (AES-128-CTR-decrypt key iv encrypted)]
-    (is (= (bytes->hex shared1) (bytes->hex shared2)))
-    (is (= (bytes->hex in) (bytes->hex out)))))
+;; (deftest AES-128-encrypt-decrypt
+;;   (let [in (hex->bytes "0000")
+;;         shared1 (secp160r1-shared-secret (hex->bytes (:secret cs1a-A))
+;;                                          (hex->bytes (:key cs1a-B)))
+;;         shared2 (secp160r1-shared-secret (hex->bytes (:secret cs1a-B))
+;;                                          (hex->bytes (:key cs1a-A)))
+;;         key (fold (bytes->SHA256 shared1) 1)
+;;         iv (byte-array (repeat 16 0x00))
+;;         encrypted (AES-128-CTR-encrypt key iv in)
+;;         out (AES-128-CTR-decrypt key iv encrypted)]
+;;     (is (= (bytes->hex shared1) (bytes->hex shared2)))
+;;     (is (= (bytes->hex in) (bytes->hex out)))))
 
 (deftest encrypt-decrypt-round-trip
   (let [local-A (load-local "1a" cs1a-A)
