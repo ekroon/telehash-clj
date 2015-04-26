@@ -9,7 +9,7 @@
 (defprotocol EllipticCurve
   "Elliptic curve implementation."
   (private-key [_] "Returns the private key as byte-array")
-  (public-key [_] "Returns the compressed public key as byte-array")
+  (public-key [_] "Returns the public key as byte-array")
   (calculate-shared-secret [_ other-public-key]))
 
 (defn- load-private [domain bytes]
