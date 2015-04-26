@@ -1,4 +1,5 @@
 (ns telehash.elliptic-curve
+  (:require [telehash.byte-utils :as bu])
   (:import [java.security SecureRandom]
            [org.bouncycastle.asn1.sec SECNamedCurves]
            [org.bouncycastle.crypto.agreement ECDHBasicAgreement]
@@ -12,12 +13,12 @@
   (public-key [_] "Returns the public key as byte-array")
   (calculate-shared-secret [_ other-public-key]))
 
-(defn- load-private [domain bytes]
-  (let [D (BigInteger. bytes)]
+(defn- load-private [domain bytes-or-seq]
+  (let [D (BigInteger. (bu/ensure-byte-array bytes-or-seq))]
     (ECPrivateKeyParameters. D domain)))
 
-(defn- load-public [domain bytes]
-  (let [Q (-> (.getCurve domain) (.decodePoint bytes))]
+(defn- load-public [domain bytes-or-seq]
+  (let [Q (-> (.getCurve domain) (.decodePoint (bu/ensure-byte-array bytes-or-seq)))]
     (ECPublicKeyParameters. Q domain)))
 
 (defn- bouncy-private->bytes [private]
