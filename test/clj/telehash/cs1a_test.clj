@@ -76,7 +76,7 @@
 (deftest should-create-exchange
   (let [local (generate)
         exchange (create-exchange local cs1a-B)]
-    (is (= 16 (-> exchange :session :token count)))))
+    (is (= 21 (-> exchange :session :endpoint count)))))
 
 (deftest should-local-encrypt
   (let [local (import cs1a-A)
@@ -108,8 +108,36 @@
         exchange-A (create-exchange local-A cs1a-B)
         local-B (import cs1a-B)
         exchange-B (create-exchange local-B cs1a-A)
-        [_ encrypted] (e3x/encrypt-message local-A (:session exchange-A) (bu/hex->bytes "0000"))
+        [_ encrypted] (e3x/encrypt-message local-A (:session exchange-A) (bu/hex->bytes "4242"))
         valid? (e3x/verify-message local-B (:session exchange-B) encrypted)
         [_ decrypted] (e3x/decrypt-message local-B (:session exchange-B) encrypted)]
     (is (= true valid?))
-    (is (= "0000" (bu/bytes->hex decrypted)))))
+    (is (= "4242" (bu/bytes->hex decrypted)))))
+
+(deftest should-create-channel
+  (let [local (import cs1a-A)
+        exchange (create-exchange local cs1a-B)
+        channel (e3x/create-channel local (:session exchange) B->A)]
+    (is (= 16 (-> channel :local-token count)))))
+
+(deftest should-encrypt-channel-message
+  (let [local (import cs1a-A)
+        exchange (create-exchange local cs1a-B)
+        channel (e3x/create-channel local (:session exchange) B->A)
+        [_ message] (e3x/encrypt-channel-message local channel (bu/hex->bytes "0000"))
+        ]
+    (is (= 10 (count message)))))
+
+(deftest full-channel-test
+  (let [local-A (import cs1a-A)
+        exchange-A (create-exchange local-A cs1a-B)
+        local-B (import cs1a-B)
+        exchange-B (create-exchange local-B cs1a-A)
+        [_ A->B] (e3x/encrypt-message local-A (:session exchange-A) (bu/hex->bytes "0000"))
+        [_ B->A] (e3x/encrypt-message local-B (:session exchange-B) (bu/hex->bytes "0000"))
+        channel-BA (e3x/create-channel local-B (:session exchange-B) A->B)
+        channel-AB (e3x/create-channel local-A (:session exchange-A) B->A)
+        [_ encrypted] (e3x/encrypt-channel-message local-A channel-AB (bu/hex->bytes "4242"))
+        [_ decrypted] (e3x/decrypt-channel-message local-B channel-BA encrypted)
+        ]
+    (is (= "4242" (bu/bytes->hex decrypted)))))

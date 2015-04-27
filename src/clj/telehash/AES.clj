@@ -5,14 +5,14 @@
 
 (defn AES-128-CTR-encrypt [keybuf ivbuf bytes-or-seq]
   (let [cipher (Cipher/getInstance "AES/CTR/NoPadding")
-        key (SecretKeySpec. keybuf "AES")
-        iv (IvParameterSpec. ivbuf)]
+        key (SecretKeySpec. (bu/ensure-byte-array keybuf) "AES")
+        iv (IvParameterSpec. (bu/ensure-byte-array ivbuf))]
     (.init cipher Cipher/ENCRYPT_MODE key iv)
     (.doFinal cipher (bu/ensure-byte-array bytes-or-seq))))
 
 (defn AES-128-CTR-decrypt [keybuf ivbuf bytes-or-seq]
   (let [cipher (Cipher/getInstance "AES/CTR/NoPadding")
-        key (SecretKeySpec. keybuf "AES")
-        iv (IvParameterSpec. ivbuf)]
+        key (SecretKeySpec. (bu/ensure-byte-array keybuf) "AES")
+        iv (IvParameterSpec. (bu/ensure-byte-array ivbuf))]
     (.init cipher Cipher/DECRYPT_MODE key iv)
     (.doFinal cipher (bu/ensure-byte-array bytes-or-seq))))

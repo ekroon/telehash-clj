@@ -28,14 +28,24 @@
              folded (byte-array (map bit-xor p1 p2))]
          (recur folded (- n 1))))))
 
-(defn make-n-bytes [bytes n]
-  (let [actual-n (count bytes)]
-    (if (< actual-n n)
-      (byte-array (concat (repeat (- n actual-n) 0x00) bytes))
-      (byte-array (take-last n bytes))
-      )))
+(defn take-n [bytes-or-seq n]
+  (take n bytes-or-seq))
 
 (defn- zeros* [n]
   (byte-array (repeat n 0x00)))
 
 (def zeros (memoize zeros*))
+
+
+(defn make-n-bytes [bytes n]
+  (let [actual-n (count bytes)]
+    (if (< actual-n n)
+      (byte-array (concat (zeros (- n actual-n)) bytes))
+      (byte-array (take-last n bytes))
+      )))
+
+(defn right-zero-padded [bytes total-n]
+  (let [actual-n (count bytes)]
+    (if (> actual-n total-n)
+      (take total-n bytes)
+      (concat bytes (zeros (- total-n actual-n))))))

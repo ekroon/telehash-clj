@@ -5,7 +5,7 @@
 ;; This should be somewhere in the core?
 (java.security.Security/addProvider (org.bouncycastle.jce.provider.BouncyCastleProvider.))
 
-(defrecord E3X [cs session])
+(defrecord E3X [cs session channel])
 
 (defprotocol CipherSet
   (cipher-set-id [_])
@@ -14,7 +14,10 @@
   (create-exchange [_ remote-id])
   (encrypt-message [_ session mbuf])
   (decrypt-message [_ session mbuf])
-  (verify-message [_ session mbuf]))
+  (verify-message [_ session mbuf])
+  (create-channel [_ session mbuf])
+  (encrypt-channel-message [_ channel mbuf])
+  (decrypt-channel-message [_ channel mbuf]))
 
 (defn export-cipher-set [cs]
   {:key (bu/bytes->hex (cipher-set-key cs))

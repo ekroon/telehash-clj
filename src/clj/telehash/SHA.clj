@@ -5,6 +5,12 @@
            [org.bouncycastle.crypto.macs HMac]
            [org.bouncycastle.jcajce.provider.digest SHA256$Digest]))
 
+(defn words->SHA256 [word-seq]
+  (let [digester (SHA256$Digest.)]
+    (doseq [w word-seq]
+      (.engineUpdate digester (bu/ensure-byte-array w) 0 (count w)))
+    (.engineDigest digester)))
+
 (defn bytes->SHA256 [bytes-or-seq]
   (let [bytes (bu/ensure-byte-array bytes-or-seq)
         digester (SHA256$Digest.)]
