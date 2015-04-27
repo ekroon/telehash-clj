@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [load])
   (:require [telehash.e3x :as e3x]
             [telehash.byte-utils :as bu]
+            [telehash.random :as random]
             [telehash.SHA :as sha]
             [telehash.AES :as aes]
             [telehash.elliptic-curve :as ec])
@@ -16,7 +17,7 @@
         mac-secret (ec/calculate-shared-secret local remote-id)]
     {:endpoint remote-id
      :ephemeral ephemeral
-     :seq (rand-int Integer/MAX_VALUE)
+     :seq (random/int)
      :encrypt-key encrypt-key
      :mac-secret mac-secret}))
 
@@ -82,7 +83,7 @@
      :remote-token remote-token
      :encryption-key encryption-key
      :decryption-key decryption-key
-     :seq (rand-int Integer/MAX_VALUE)
+     :seq (random/int)
      }))
 
 (defn- encrypt-channel-message* [channel mbuf]
