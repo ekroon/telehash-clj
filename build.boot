@@ -7,7 +7,7 @@
 
 
 (set-env!
- :source-paths   (merge (set (:source-paths project)) "test/clj")
+ :source-paths   (merge (set (:source-paths project)) "test")
  :resource-paths (set (:resource-paths project))
  :dependencies   (into '[[adzerk/boot-test "1.0.4" :scope "test"]]
                        (:dependencies project)))
